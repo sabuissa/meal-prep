@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cuisine Meal Planner</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <h1>Cuisine Meal Planner</h1>
+    <p class="tagline">Browse dishes by world cuisine and build your meal plan</p>
+  </header>
+
+  <main>
+    <section class="browse-section" aria-labelledby="browse-heading">
+      <h2 id="browse-heading">Browse by Cuisine</h2>
+
+      <div class="cuisine-selector">
+        <label for="cuisine-select">Cuisine</label>
+        <select id="cuisine-select" aria-label="Cuisine filter">
+          <option value="">Select a cuisine…</option>
+          <!-- Cuisine options populated by script.js -->
+        </select>
+      </div>
+
+      <div id="dishes-status" class="status-area" role="status" aria-live="polite"></div>
+
+      <div id="dishes-grid" class="dishes-grid">
+        <!-- Dish cards populated by script.js -->
+      </div>
+    </section>
+
+    <section class="plan-section" aria-labelledby="plan-heading">
+      <h2 id="plan-heading">My Meal Plan</h2>
+
+      <div id="plan-status" class="status-area" role="status" aria-live="polite"></div>
+
+      <ul id="meal-plan-list" class="meal-plan-list">
+        <!-- Meal plan entries populated by script.js -->
+      </ul>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>Recipe data courtesy of <a href="https://www.themealdb.com/" target="_blank" rel="noopener">TheMealDB</a>.</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
