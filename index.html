@@ -46,6 +46,15 @@
     <p>Recipe data courtesy of <a href="https://www.themealdb.com/" target="_blank" rel="noopener">TheMealDB</a>.</p>
   </footer>
 
+  <div id="meal-modal-overlay" class="modal-overlay hidden">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-meal-title">
+      <button type="button" id="modal-close" class="modal-close" aria-label="Close">&times;</button>
+      <div id="modal-body" class="modal-body">
+        <!-- Meal detail content populated by script.js -->
+      </div>
+    </div>
+  </div>
+
   <script src="script.js"></script>
 </body>
 </html>

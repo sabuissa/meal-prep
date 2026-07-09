@@ -44,6 +44,20 @@ const CUISINE_ACCENTS = {
 };
 const ACCENT_FALLBACK = '#A8A296';
 
+// TheMealDB's area list (list.php?a=list) now lists ~195 world countries, but
+// filter.php only has real recipes for this fixed set of classic areas —
+// everything else returns null. Checking each cuisine's dish count via a live
+// request (even bounded-concurrency) hammers the shared free-tier test key —
+// observed to intermittently break subsequent requests, including the
+// Add-to-plan/detail lookups — so cuisines without dishes are filtered out
+// using this known-good allowlist instead of extra network calls.
+const CUISINES_WITH_DISHES = new Set([
+  'American', 'British', 'Canadian', 'Chinese', 'Croatian', 'Dutch', 'Egyptian',
+  'French', 'Greek', 'Indian', 'Irish', 'Italian', 'Jamaican', 'Japanese',
+  'Kenyan', 'Malaysian', 'Mexican', 'Moroccan', 'Polish', 'Portuguese',
+  'Russian', 'Spanish', 'Thai', 'Tunisian', 'Turkish', 'Vietnamese',
+]);
+
 function getAccent(cuisine) {
   return CUISINE_ACCENTS[cuisine] || ACCENT_FALLBACK;
 }
@@ -65,6 +79,10 @@ const state = {
 
 let planIdCounter = 0;
 
+// cuisine -> dishes[], populated the first time a cuisine is selected so
+// switching back to it later doesn't re-fetch the same data.
+const dishesCache = new Map();
+
 /* =========================================================
    DOM refs
    ========================================================= */
@@ -75,6 +93,9 @@ const els = {
   dishesGrid: document.getElementById('dishes-grid'),
   planStatus: document.getElementById('plan-status'),
   mealPlanList: document.getElementById('meal-plan-list'),
+  modalOverlay: document.getElementById('meal-modal-overlay'),
+  modalBody: document.getElementById('modal-body'),
+  modalClose: document.getElementById('modal-close'),
 };
 
 /* =========================================================
@@ -173,6 +194,20 @@ function renderDishes() {
     const card = document.createElement('div');
     card.className = 'dish-card';
     card.style.setProperty('--accent', getAccent(state.selectedCuisine));
+    card.tabIndex = 0;
+    card.setAttribute('role', 'button');
+    card.setAttribute('aria-label', `View details for ${dish.strMeal}`);
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.add-btn')) return;
+      showMealDetails(dish.idMeal);
+    });
+    card.addEventListener('keydown', (e) => {
+      if (e.target.closest('.add-btn')) return;
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        showMealDetails(dish.idMeal);
+      }
+    });
 
     const img = document.createElement('img');
     img.src = mediumThumb(dish.strMealThumb);
@@ -259,6 +294,79 @@ function renderMealPlan() {
 }
 
 /* =========================================================
+   Meal detail modal
+   ========================================================= */
+
+function openModal() {
+  els.modalOverlay.classList.remove('hidden');
+  document.body.classList.add('modal-open');
+}
+
+function closeModal() {
+  els.modalOverlay.classList.add('hidden');
+  document.body.classList.remove('modal-open');
+  els.modalBody.innerHTML = '';
+}
+
+function renderMealDetails(meal) {
+  els.modalBody.className = 'modal-body';
+  els.modalBody.innerHTML = '';
+
+  const img = document.createElement('img');
+  img.className = 'modal-thumb';
+  img.src = mediumThumb(meal.strMealThumb);
+  img.alt = meal.strMeal;
+
+  const title = document.createElement('h3');
+  title.id = 'modal-meal-title';
+  title.textContent = meal.strMeal;
+
+  const meta = document.createElement('p');
+  meta.className = 'modal-meta';
+  meta.textContent = [meal.strCategory, meal.strArea].filter(Boolean).join(' · ');
+
+  const ingredientsHeading = document.createElement('h4');
+  ingredientsHeading.textContent = 'Ingredients';
+
+  const ingredientsList = document.createElement('ul');
+  ingredientsList.className = 'ingredients';
+  extractIngredients(meal).forEach((ing) => {
+    const li = document.createElement('li');
+    li.textContent = ing.measure ? `${ing.ingredient} — ${ing.measure}` : ing.ingredient;
+    ingredientsList.appendChild(li);
+  });
+
+  const instructionsHeading = document.createElement('h4');
+  instructionsHeading.textContent = 'Instructions';
+
+  const instructions = document.createElement('p');
+  instructions.className = 'modal-instructions';
+  instructions.textContent = meal.strInstructions || '';
+
+  els.modalBody.append(img, title, meta, ingredientsHeading, ingredientsList, instructionsHeading, instructions);
+}
+
+async function showMealDetails(idMeal) {
+  openModal();
+  showLoading(els.modalBody, 'Loading recipe…');
+
+  try {
+    const meal = await fetchDishDetails(idMeal);
+    renderMealDetails(meal);
+  } catch (err) {
+    showError(els.modalBody, "Couldn't load recipe details right now — please try again.");
+  }
+}
+
+els.modalClose.addEventListener('click', closeModal);
+els.modalOverlay.addEventListener('click', (e) => {
+  if (e.target === els.modalOverlay) closeModal();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !els.modalOverlay.classList.contains('hidden')) closeModal();
+});
+
+/* =========================================================
    Actions
    ========================================================= */
 
@@ -267,10 +375,20 @@ async function selectCuisine(cuisine) {
   updateSelectAccent();
 
   els.dishesGrid.innerHTML = '';
+
+  const cached = dishesCache.get(cuisine);
+  if (cached) {
+    state.dishes = cached;
+    clearStatus(els.dishesStatus);
+    renderDishes();
+    return;
+  }
+
   showLoading(els.dishesStatus, 'Loading recipes…');
 
   try {
     const dishes = await fetchDishesByCuisine(cuisine);
+    dishesCache.set(cuisine, dishes);
     state.dishes = dishes;
 
     if (dishes.length === 0) {
@@ -319,7 +437,8 @@ async function init() {
   showLoading(els.dishesStatus, 'Loading cuisines…');
 
   try {
-    const cuisines = await fetchCuisines();
+    const allCuisines = await fetchCuisines();
+    const cuisines = allCuisines.filter((cuisine) => CUISINES_WITH_DISHES.has(cuisine));
     state.cuisines = cuisines;
     renderCuisineSelector();
 
