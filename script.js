@@ -331,6 +331,33 @@ function buildShoppingList() {
   return Array.from(grouped.values());
 }
 
+// Only these weight/volume units are summed; a measure that isn't exactly
+// {number}{unit} (counts, fractions, "Dash", cups, tbsp/tsp, ...) never
+// parses, which is what forces the safe text-join fallback below.
+const SUMMABLE_UNITS = /^(g|kg|ml|l)$/i;
+
+function parseMeasure(measure) {
+  const match = measure.trim().match(/^(\d+(?:\.\d+)?)\s*(g|kg|ml|l)$/i);
+  if (!match) return null;
+  return { amount: parseFloat(match[1]), unit: match[2].toLowerCase() };
+}
+
+// Sums measures only when every one of them parses to the same recognized
+// unit; otherwise (mixed units, or anything unparseable) falls back to
+// joining the raw measure text with "+", unchanged from before.
+function formatMeasures(measures) {
+  const parsed = measures.map(parseMeasure);
+  const canSum = parsed.every((p) => p !== null && SUMMABLE_UNITS.test(p.unit) && p.unit === parsed[0].unit);
+
+  if (canSum) {
+    const total = parsed.reduce((sum, p) => sum + p.amount, 0);
+    const rounded = Math.round(total * 1000) / 1000;
+    return `${rounded}${parsed[0].unit}`;
+  }
+
+  return measures.join(' + ');
+}
+
 function renderShoppingList() {
   els.shoppingList.innerHTML = '';
 
@@ -342,7 +369,7 @@ function renderShoppingList() {
 
   buildShoppingList().forEach((item) => {
     const li = document.createElement('li');
-    li.textContent = item.measures.length > 0 ? `${item.name} — ${item.measures.join(' + ')}` : item.name;
+    li.textContent = item.measures.length > 0 ? `${item.name} — ${formatMeasures(item.measures)}` : item.name;
     els.shoppingList.appendChild(li);
   });
 }
