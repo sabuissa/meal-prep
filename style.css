@@ -251,6 +251,22 @@ section h2 {
 .plan-item-header .cuisine-tag {
   font-size: 0.75rem;
   color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.remove-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.remove-btn:hover {
+  color: var(--error-text);
 }
 
 .plan-item details {
@@ -267,6 +283,27 @@ section h2 {
   margin: 0.5rem 0 0;
   padding-left: 1.1rem;
   font-size: 0.88rem;
+}
+
+/* ---------- Shopping list ---------- */
+
+.shopping-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--surface);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.shopping-list li {
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.92rem;
+}
+
+.shopping-list li:last-child {
+  border-bottom: none;
 }
 
 /* ---------- Meal detail modal ---------- */

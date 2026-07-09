@@ -93,6 +93,8 @@ const els = {
   dishesGrid: document.getElementById('dishes-grid'),
   planStatus: document.getElementById('plan-status'),
   mealPlanList: document.getElementById('meal-plan-list'),
+  shoppingStatus: document.getElementById('shopping-status'),
+  shoppingList: document.getElementById('shopping-list'),
   modalOverlay: document.getElementById('meal-modal-overlay'),
   modalBody: document.getElementById('modal-body'),
   modalClose: document.getElementById('modal-close'),
@@ -268,9 +270,17 @@ function renderMealPlan() {
     tag.className = 'cuisine-tag';
     tag.textContent = entry.strArea || '';
 
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'remove-btn';
+    removeBtn.textContent = 'Remove';
+    removeBtn.setAttribute('aria-label', `Remove ${entry.strMeal} from meal plan`);
+    removeBtn.addEventListener('click', () => removeDishFromPlan(entry.planId));
+
     header.appendChild(img);
     header.appendChild(title);
     header.appendChild(tag);
+    header.appendChild(removeBtn);
 
     const details = document.createElement('details');
     const summary = document.createElement('summary');
@@ -290,6 +300,50 @@ function renderMealPlan() {
     li.appendChild(header);
     li.appendChild(details);
     els.mealPlanList.appendChild(li);
+  });
+}
+
+/* =========================================================
+   Rendering — shopping list
+   ========================================================= */
+
+// Aggregates ingredients across every dish currently in the plan (a dish
+// added twice contributes its ingredients twice). Ingredients are grouped
+// by name (lowercased + trimmed) so casing/whitespace differences merge
+// into one line, but measures are only concatenated as text — never summed
+// numerically. Reads directly from state.mealPlan, so a future custom-meal
+// feature just needs to push entries with the same {ingredients} shape.
+function buildShoppingList() {
+  const grouped = new Map(); // lowercased/trimmed name -> { name, measures[] }
+
+  state.mealPlan.forEach((entry) => {
+    entry.ingredients.forEach((ing) => {
+      const key = ing.ingredient.toLowerCase().trim();
+      if (!grouped.has(key)) {
+        grouped.set(key, { name: ing.ingredient.trim(), measures: [] });
+      }
+      if (ing.measure) {
+        grouped.get(key).measures.push(ing.measure);
+      }
+    });
+  });
+
+  return Array.from(grouped.values());
+}
+
+function renderShoppingList() {
+  els.shoppingList.innerHTML = '';
+
+  if (state.mealPlan.length === 0) {
+    showEmpty(els.shoppingStatus, 'Add dishes to build your shopping list');
+    return;
+  }
+  clearStatus(els.shoppingStatus);
+
+  buildShoppingList().forEach((item) => {
+    const li = document.createElement('li');
+    li.textContent = item.measures.length > 0 ? `${item.name} — ${item.measures.join(' + ')}` : item.name;
+    els.shoppingList.appendChild(li);
   });
 }
 
@@ -370,6 +424,16 @@ document.addEventListener('keydown', (e) => {
    Actions
    ========================================================= */
 
+function updatePlanViews() {
+  renderMealPlan();
+  renderShoppingList();
+}
+
+function removeDishFromPlan(planId) {
+  state.mealPlan = state.mealPlan.filter((entry) => entry.planId !== planId);
+  updatePlanViews();
+}
+
 async function selectCuisine(cuisine) {
   state.selectedCuisine = cuisine;
   updateSelectAccent();
@@ -419,7 +483,7 @@ async function addDishToPlan(dish, buttonEl) {
       ingredients: extractIngredients(details),
     };
     state.mealPlan.push(entry);
-    renderMealPlan();
+    updatePlanViews();
   } catch (err) {
     showError(els.planStatus, "Couldn't load recipes right now — please try again.");
   } finally {
@@ -433,7 +497,7 @@ async function addDishToPlan(dish, buttonEl) {
    ========================================================= */
 
 async function init() {
-  renderMealPlan(); // shows the empty-plan state immediately
+  updatePlanViews(); // shows the empty-plan and empty-shopping-list states immediately
   showLoading(els.dishesStatus, 'Loading cuisines…');
 
   try {
