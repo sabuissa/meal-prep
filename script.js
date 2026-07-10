@@ -67,6 +67,32 @@ function mediumThumb(url) {
 }
 
 /* =========================================================
+   Persistence — saved days only (never the working plan or active day)
+   ========================================================= */
+
+const SAVED_DAYS_STORAGE_KEY = 'mealPlanner.savedDays';
+
+function loadSavedDaysFromStorage() {
+  try {
+    const raw = localStorage.getItem(SAVED_DAYS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+function persistSavedDays() {
+  try {
+    localStorage.setItem(SAVED_DAYS_STORAGE_KEY, JSON.stringify(state.savedDays));
+  } catch (err) {
+    // Storage can fail (quota exceeded, private browsing, disabled, ...) —
+    // the app keeps working in memory even if persistence silently fails.
+  }
+}
+
+/* =========================================================
    State
    ========================================================= */
 
@@ -76,8 +102,9 @@ const state = {
   dishes: [],
   mealPlan: [], // each entry: { planId, idMeal, strMeal, strMealThumb, strArea, ingredients: [{ingredient, measure}] }
   // each entry: { id, name, dishes: [...] } — dishes is a deep copy of the
-  // mealPlan entries at save time, structured the same way so this array
-  // can be handed to localStorage as-is once that feature lands.
+  // mealPlan entries at save time, structured the same way. Persisted to
+  // localStorage on every change (see persistSavedDays) and reloaded on
+  // init; the working plan and active day below are never persisted.
   savedDays: [],
   // id of the saved day currently loaded into "My Meal Plan", or null if the
   // working plan was built from scratch. Set only by loadDay(); determines
@@ -196,8 +223,23 @@ function renderCuisineSelector() {
     els.cuisineSelect.appendChild(option);
   });
   els.cuisineSelect.addEventListener('change', (e) => {
-    if (e.target.value) selectCuisine(e.target.value);
+    if (e.target.value) {
+      selectCuisine(e.target.value);
+    } else {
+      clearCuisineSelection();
+    }
   });
+}
+
+// Resets the browse view when the user picks the blank placeholder option
+// back out of the dropdown, instead of leaving the previous cuisine's
+// dishes on screen.
+function clearCuisineSelection() {
+  state.selectedCuisine = null;
+  state.dishes = [];
+  updateSelectAccent();
+  els.dishesGrid.innerHTML = '';
+  showEmpty(els.dishesStatus, 'Select a cuisine to browse dishes.');
 }
 
 function updateSelectAccent() {
@@ -572,6 +614,7 @@ function saveToDay(name) {
     name: trimmedName,
     dishes: cloneDishes(state.mealPlan),
   });
+  persistSavedDays();
   renderSavedDays();
 }
 
@@ -582,6 +625,7 @@ function saveToDay(name) {
 function updateActiveDay(day) {
   day.dishes = cloneDishes(state.mealPlan);
   state.activeDayId = null;
+  persistSavedDays();
   renderSavedDays();
 }
 
@@ -616,6 +660,7 @@ function deleteSavedDay(dayId) {
   if (state.activeDayId === dayId) {
     state.activeDayId = null;
   }
+  persistSavedDays();
   renderSavedDays();
 }
 
@@ -695,7 +740,13 @@ async function addDishToPlan(dish, buttonEl) {
 
 async function init() {
   updatePlanViews(); // shows the empty-plan and empty-shopping-list states immediately
-  renderSavedDays(); // shows the empty-saved-days state immediately
+
+  // Only saved days persist across reloads — the working plan and active-day
+  // state always start fresh.
+  state.savedDays = loadSavedDaysFromStorage();
+  savedDayIdCounter = state.savedDays.reduce((max, day) => Math.max(max, day.id), 0);
+  renderSavedDays();
+
   showLoading(els.dishesStatus, 'Loading cuisines…');
 
   try {
