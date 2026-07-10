@@ -338,6 +338,16 @@ section h2 {
 .saved-day-item .saved-day-name {
   font-weight: 600;
   flex: 1;
+  cursor: pointer;
+}
+
+.saved-day-item .saved-day-name:hover {
+  text-decoration: underline;
+}
+
+.saved-day-item .saved-day-name:focus-visible {
+  outline: 2px solid var(--accent-fallback);
+  outline-offset: 2px;
 }
 
 .saved-day-item .saved-day-count {

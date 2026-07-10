@@ -143,6 +143,9 @@ const els = {
   saveDayInput: document.getElementById('save-day-input'),
   saveDayModalClose: document.getElementById('save-day-modal-close'),
   saveDayCancelBtn: document.getElementById('save-day-cancel-btn'),
+  dayViewModalOverlay: document.getElementById('day-view-modal-overlay'),
+  dayViewModalBody: document.getElementById('day-view-modal-body'),
+  dayViewModalClose: document.getElementById('day-view-modal-close'),
 };
 
 /* =========================================================
@@ -382,6 +385,16 @@ function renderSavedDays() {
       const name = document.createElement('span');
       name.className = 'saved-day-name';
       name.textContent = day.name;
+      name.tabIndex = 0;
+      name.setAttribute('role', 'button');
+      name.setAttribute('aria-label', `View meals in ${day.name}`);
+      name.addEventListener('click', () => showDayView(day.id));
+      name.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          showDayView(day.id);
+        }
+      });
 
       const count = document.createElement('span');
       count.className = 'saved-day-count';
@@ -561,6 +574,104 @@ document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   if (!els.modalOverlay.classList.contains('hidden')) closeModal();
   if (!els.saveDayModalOverlay.classList.contains('hidden')) closeSaveDayModal();
+  if (!els.dayViewModalOverlay.classList.contains('hidden')) closeDayViewModal();
+});
+
+/* =========================================================
+   Saved-day view modal (read-only)
+   ========================================================= */
+
+function openDayViewModal() {
+  els.dayViewModalOverlay.classList.remove('hidden');
+  document.body.classList.add('modal-open');
+}
+
+function closeDayViewModal() {
+  els.dayViewModalOverlay.classList.add('hidden');
+  document.body.classList.remove('modal-open');
+  els.dayViewModalBody.innerHTML = '';
+}
+
+// Renders a saved day's meals (name, cuisine, collapsible ingredients) from
+// data already in state — purely read-only, no fetch and no mutation of
+// state.mealPlan or state.activeDayId.
+function renderDayView(day) {
+  els.dayViewModalBody.className = 'modal-body';
+  els.dayViewModalBody.innerHTML = '';
+
+  const title = document.createElement('h3');
+  title.id = 'day-view-modal-title';
+  title.textContent = day.name;
+
+  const meta = document.createElement('p');
+  meta.className = 'modal-meta';
+  meta.textContent = `${day.dishes.length} meal${day.dishes.length === 1 ? '' : 's'}`;
+
+  els.dayViewModalBody.append(title, meta);
+
+  if (day.dishes.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'modal-instructions';
+    empty.textContent = 'This day has no meals saved.';
+    els.dayViewModalBody.appendChild(empty);
+    return;
+  }
+
+  const list = document.createElement('ul');
+  list.className = 'meal-plan-list';
+
+  day.dishes.forEach((entry) => {
+    const li = document.createElement('li');
+    li.className = 'plan-item';
+    li.style.setProperty('--accent', getAccent(entry.strArea));
+
+    const header = document.createElement('div');
+    header.className = 'plan-item-header';
+
+    const img = document.createElement('img');
+    img.src = mediumThumb(entry.strMealThumb);
+    img.alt = entry.strMeal;
+    img.loading = 'lazy';
+
+    const name = document.createElement('h3');
+    name.textContent = entry.strMeal;
+
+    const tag = document.createElement('span');
+    tag.className = 'cuisine-tag';
+    tag.textContent = entry.strArea || '';
+
+    header.append(img, name, tag);
+
+    const details = document.createElement('details');
+    const summary = document.createElement('summary');
+    summary.textContent = `Ingredients (${entry.ingredients.length})`;
+
+    const ingredientsList = document.createElement('ul');
+    ingredientsList.className = 'ingredients';
+    entry.ingredients.forEach((ing) => {
+      const item = document.createElement('li');
+      item.textContent = ing.measure ? `${ing.ingredient} — ${ing.measure}` : ing.ingredient;
+      ingredientsList.appendChild(item);
+    });
+
+    details.append(summary, ingredientsList);
+    li.append(header, details);
+    list.appendChild(li);
+  });
+
+  els.dayViewModalBody.appendChild(list);
+}
+
+function showDayView(dayId) {
+  const day = state.savedDays.find((d) => d.id === dayId);
+  if (!day) return;
+  openDayViewModal();
+  renderDayView(day);
+}
+
+els.dayViewModalClose.addEventListener('click', closeDayViewModal);
+els.dayViewModalOverlay.addEventListener('click', (e) => {
+  if (e.target === els.dayViewModalOverlay) closeDayViewModal();
 });
 
 /* =========================================================
