@@ -79,6 +79,10 @@ const state = {
   // mealPlan entries at save time, structured the same way so this array
   // can be handed to localStorage as-is once that feature lands.
   savedDays: [],
+  // id of the saved day currently loaded into "My Meal Plan", or null if the
+  // working plan was built from scratch. Set only by loadDay(); determines
+  // whether "Save to Day" overwrites that day in place or creates a new one.
+  activeDayId: null,
 };
 
 let planIdCounter = 0;
@@ -99,6 +103,7 @@ const els = {
   planStatus: document.getElementById('plan-status'),
   mealPlanList: document.getElementById('meal-plan-list'),
   saveDayBtn: document.getElementById('save-day-btn'),
+  activeDayIndicator: document.getElementById('active-day-indicator'),
   savedDaysStatus: document.getElementById('saved-days-status'),
   savedDaysList: document.getElementById('saved-days-list'),
   shoppingStatus: document.getElementById('shopping-status'),
@@ -106,6 +111,11 @@ const els = {
   modalOverlay: document.getElementById('meal-modal-overlay'),
   modalBody: document.getElementById('modal-body'),
   modalClose: document.getElementById('modal-close'),
+  saveDayModalOverlay: document.getElementById('save-day-modal-overlay'),
+  saveDayForm: document.getElementById('save-day-form'),
+  saveDayInput: document.getElementById('save-day-input'),
+  saveDayModalClose: document.getElementById('save-day-modal-close'),
+  saveDayCancelBtn: document.getElementById('save-day-cancel-btn'),
 };
 
 /* =========================================================
@@ -320,32 +330,48 @@ function renderSavedDays() {
 
   if (state.savedDays.length === 0) {
     showEmpty(els.savedDaysStatus, 'No days saved yet.');
-    return;
+  } else {
+    clearStatus(els.savedDaysStatus);
+
+    state.savedDays.forEach((day) => {
+      const li = document.createElement('li');
+      li.className = 'saved-day-item' + (day.id === state.activeDayId ? ' active' : '');
+
+      const name = document.createElement('span');
+      name.className = 'saved-day-name';
+      name.textContent = day.name;
+
+      const count = document.createElement('span');
+      count.className = 'saved-day-count';
+      count.textContent = `${day.dishes.length} meal${day.dishes.length === 1 ? '' : 's'}`;
+
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.className = 'edit-day-btn';
+      editBtn.textContent = 'Edit';
+      editBtn.setAttribute('aria-label', `Load ${day.name} into My Meal Plan`);
+      editBtn.addEventListener('click', () => loadDay(day.id));
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className = 'remove-btn';
+      deleteBtn.textContent = 'Delete';
+      deleteBtn.setAttribute('aria-label', `Delete ${day.name}`);
+      deleteBtn.addEventListener('click', () => deleteSavedDay(day.id));
+
+      li.append(name, count, editBtn, deleteBtn);
+      els.savedDaysList.appendChild(li);
+    });
   }
-  clearStatus(els.savedDaysStatus);
 
-  state.savedDays.forEach((day) => {
-    const li = document.createElement('li');
-    li.className = 'saved-day-item';
+  updateActiveDayIndicator();
+}
 
-    const name = document.createElement('span');
-    name.className = 'saved-day-name';
-    name.textContent = day.name;
-
-    const count = document.createElement('span');
-    count.className = 'saved-day-count';
-    count.textContent = `${day.dishes.length} meal${day.dishes.length === 1 ? '' : 's'}`;
-
-    const deleteBtn = document.createElement('button');
-    deleteBtn.type = 'button';
-    deleteBtn.className = 'remove-btn';
-    deleteBtn.textContent = 'Delete';
-    deleteBtn.setAttribute('aria-label', `Delete ${day.name}`);
-    deleteBtn.addEventListener('click', () => deleteSavedDay(day.id));
-
-    li.append(name, count, deleteBtn);
-    els.savedDaysList.appendChild(li);
-  });
+function updateActiveDayIndicator() {
+  const activeDay = state.savedDays.find((day) => day.id === state.activeDayId);
+  els.activeDayIndicator.textContent = activeDay
+    ? `Editing "${activeDay.name}" — Save to Day will update it.`
+    : '';
 }
 
 /* =========================================================
@@ -489,7 +515,9 @@ els.modalOverlay.addEventListener('click', (e) => {
   if (e.target === els.modalOverlay) closeModal();
 });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !els.modalOverlay.classList.contains('hidden')) closeModal();
+  if (e.key !== 'Escape') return;
+  if (!els.modalOverlay.classList.contains('hidden')) closeModal();
+  if (!els.saveDayModalOverlay.classList.contains('hidden')) closeSaveDayModal();
 });
 
 /* =========================================================
@@ -506,33 +534,96 @@ function removeDishFromPlan(planId) {
   updatePlanViews();
 }
 
-// Snapshots the current working plan under a user-given name. Deep-copies
-// each dish (and its ingredients array) so later edits to "My Meal Plan"
-// can't reach back and mutate an already-saved day.
-function saveToDay() {
-  const name = prompt('Name this day (e.g. "Monday", "This Week"):');
-  if (name === null) return;
+function openSaveDayModal() {
+  els.saveDayInput.value = '';
+  els.saveDayModalOverlay.classList.remove('hidden');
+  document.body.classList.add('modal-open');
+  els.saveDayInput.focus();
+}
 
+function closeSaveDayModal() {
+  els.saveDayModalOverlay.classList.add('hidden');
+  document.body.classList.remove('modal-open');
+}
+
+// Deep-copies a list of plan entries (dish + its ingredients array) so the
+// copy can never be mutated by later edits to whatever it was copied from.
+// Used both when snapshotting the working plan into a saved day and when
+// loading a saved day back into the working plan.
+function cloneDishes(entries) {
+  return entries.map((entry) => ({
+    ...entry,
+    ingredients: entry.ingredients.map((ing) => ({ ...ing })),
+  }));
+}
+
+// Snapshots the current working plan under a user-given name, creating a
+// brand-new saved day. Only reached when there's no active day — see
+// handleSaveDayClick.
+function saveToDay(name) {
   const trimmedName = name.trim();
   if (!trimmedName) return;
 
   state.savedDays.push({
     id: ++savedDayIdCounter,
     name: trimmedName,
-    dishes: state.mealPlan.map((entry) => ({
-      ...entry,
-      ingredients: entry.ingredients.map((ing) => ({ ...ing })),
-    })),
+    dishes: cloneDishes(state.mealPlan),
   });
+  renderSavedDays();
+}
+
+// Overwrites an already-active day's dishes with the current working plan
+// (same name, no prompt) and refreshes its meal count in the list.
+function updateActiveDay(day) {
+  day.dishes = cloneDishes(state.mealPlan);
+  renderSavedDays();
+}
+
+function handleSaveDayClick() {
+  const activeDay = state.savedDays.find((day) => day.id === state.activeDayId);
+  if (activeDay) {
+    updateActiveDay(activeDay);
+  } else {
+    openSaveDayModal();
+  }
+}
+
+// Loads a saved day's dishes into "My Meal Plan" for editing and marks it
+// as the active day. Warns before clobbering a non-empty working plan.
+function loadDay(dayId) {
+  const day = state.savedDays.find((d) => d.id === dayId);
+  if (!day) return;
+
+  if (state.mealPlan.length > 0) {
+    const confirmed = confirm('This will replace your current meal plan. Continue?');
+    if (!confirmed) return;
+  }
+
+  state.mealPlan = cloneDishes(day.dishes);
+  state.activeDayId = day.id;
+  updatePlanViews();
   renderSavedDays();
 }
 
 function deleteSavedDay(dayId) {
   state.savedDays = state.savedDays.filter((day) => day.id !== dayId);
+  if (state.activeDayId === dayId) {
+    state.activeDayId = null;
+  }
   renderSavedDays();
 }
 
-els.saveDayBtn.addEventListener('click', saveToDay);
+els.saveDayBtn.addEventListener('click', handleSaveDayClick);
+els.saveDayModalClose.addEventListener('click', closeSaveDayModal);
+els.saveDayCancelBtn.addEventListener('click', closeSaveDayModal);
+els.saveDayModalOverlay.addEventListener('click', (e) => {
+  if (e.target === els.saveDayModalOverlay) closeSaveDayModal();
+});
+els.saveDayForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  saveToDay(els.saveDayInput.value);
+  closeSaveDayModal();
+});
 
 async function selectCuisine(cuisine) {
   state.selectedCuisine = cuisine;

@@ -37,6 +37,8 @@
         <button type="button" id="save-day-btn" class="save-day-btn">Save to Day</button>
       </div>
 
+      <p id="active-day-indicator" class="active-day-indicator"></p>
+
       <div id="plan-status" class="status-area" role="status" aria-live="polite"></div>
 
       <ul id="meal-plan-list" class="meal-plan-list">
@@ -75,6 +77,26 @@
       <div id="modal-body" class="modal-body">
         <!-- Meal detail content populated by script.js -->
       </div>
+    </div>
+  </div>
+
+  <div id="save-day-modal-overlay" class="modal-overlay hidden">
+    <div class="modal modal-form" role="dialog" aria-modal="true" aria-labelledby="save-day-modal-title">
+      <button type="button" id="save-day-modal-close" class="modal-close" aria-label="Close">&times;</button>
+      <h3 id="save-day-modal-title">Name this day</h3>
+      <form id="save-day-form">
+        <input
+          type="text"
+          id="save-day-input"
+          class="modal-input"
+          placeholder="e.g. Monday, This Week"
+          autocomplete="off"
+        />
+        <div class="modal-form-actions">
+          <button type="button" id="save-day-cancel-btn" class="modal-cancel-btn">Cancel</button>
+          <button type="submit" class="modal-save-btn">Save</button>
+        </div>
+      </form>
     </div>
   </div>
 
