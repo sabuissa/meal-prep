@@ -32,12 +32,25 @@
     </section>
 
     <section class="plan-section" aria-labelledby="plan-heading">
-      <h2 id="plan-heading">My Meal Plan</h2>
+      <div class="section-heading-row">
+        <h2 id="plan-heading">My Meal Plan</h2>
+        <button type="button" id="save-day-btn" class="save-day-btn">Save to Day</button>
+      </div>
 
       <div id="plan-status" class="status-area" role="status" aria-live="polite"></div>
 
       <ul id="meal-plan-list" class="meal-plan-list">
         <!-- Meal plan entries populated by script.js -->
+      </ul>
+    </section>
+
+    <section class="saved-days-section" aria-labelledby="saved-days-heading">
+      <h2 id="saved-days-heading">Saved Days</h2>
+
+      <div id="saved-days-status" class="status-area" role="status" aria-live="polite"></div>
+
+      <ul id="saved-days-list" class="saved-days-list">
+        <!-- Saved day entries populated by script.js -->
       </ul>
     </section>
 

@@ -75,9 +75,14 @@ const state = {
   selectedCuisine: null,
   dishes: [],
   mealPlan: [], // each entry: { planId, idMeal, strMeal, strMealThumb, strArea, ingredients: [{ingredient, measure}] }
+  // each entry: { id, name, dishes: [...] } — dishes is a deep copy of the
+  // mealPlan entries at save time, structured the same way so this array
+  // can be handed to localStorage as-is once that feature lands.
+  savedDays: [],
 };
 
 let planIdCounter = 0;
+let savedDayIdCounter = 0;
 
 // cuisine -> dishes[], populated the first time a cuisine is selected so
 // switching back to it later doesn't re-fetch the same data.
@@ -93,6 +98,9 @@ const els = {
   dishesGrid: document.getElementById('dishes-grid'),
   planStatus: document.getElementById('plan-status'),
   mealPlanList: document.getElementById('meal-plan-list'),
+  saveDayBtn: document.getElementById('save-day-btn'),
+  savedDaysStatus: document.getElementById('saved-days-status'),
+  savedDaysList: document.getElementById('saved-days-list'),
   shoppingStatus: document.getElementById('shopping-status'),
   shoppingList: document.getElementById('shopping-list'),
   modalOverlay: document.getElementById('meal-modal-overlay'),
@@ -304,6 +312,43 @@ function renderMealPlan() {
 }
 
 /* =========================================================
+   Rendering — saved days
+   ========================================================= */
+
+function renderSavedDays() {
+  els.savedDaysList.innerHTML = '';
+
+  if (state.savedDays.length === 0) {
+    showEmpty(els.savedDaysStatus, 'No days saved yet.');
+    return;
+  }
+  clearStatus(els.savedDaysStatus);
+
+  state.savedDays.forEach((day) => {
+    const li = document.createElement('li');
+    li.className = 'saved-day-item';
+
+    const name = document.createElement('span');
+    name.className = 'saved-day-name';
+    name.textContent = day.name;
+
+    const count = document.createElement('span');
+    count.className = 'saved-day-count';
+    count.textContent = `${day.dishes.length} meal${day.dishes.length === 1 ? '' : 's'}`;
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className = 'remove-btn';
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.setAttribute('aria-label', `Delete ${day.name}`);
+    deleteBtn.addEventListener('click', () => deleteSavedDay(day.id));
+
+    li.append(name, count, deleteBtn);
+    els.savedDaysList.appendChild(li);
+  });
+}
+
+/* =========================================================
    Rendering — shopping list
    ========================================================= */
 
@@ -461,6 +506,34 @@ function removeDishFromPlan(planId) {
   updatePlanViews();
 }
 
+// Snapshots the current working plan under a user-given name. Deep-copies
+// each dish (and its ingredients array) so later edits to "My Meal Plan"
+// can't reach back and mutate an already-saved day.
+function saveToDay() {
+  const name = prompt('Name this day (e.g. "Monday", "This Week"):');
+  if (name === null) return;
+
+  const trimmedName = name.trim();
+  if (!trimmedName) return;
+
+  state.savedDays.push({
+    id: ++savedDayIdCounter,
+    name: trimmedName,
+    dishes: state.mealPlan.map((entry) => ({
+      ...entry,
+      ingredients: entry.ingredients.map((ing) => ({ ...ing })),
+    })),
+  });
+  renderSavedDays();
+}
+
+function deleteSavedDay(dayId) {
+  state.savedDays = state.savedDays.filter((day) => day.id !== dayId);
+  renderSavedDays();
+}
+
+els.saveDayBtn.addEventListener('click', saveToDay);
+
 async function selectCuisine(cuisine) {
   state.selectedCuisine = cuisine;
   updateSelectAccent();
@@ -525,6 +598,7 @@ async function addDishToPlan(dish, buttonEl) {
 
 async function init() {
   updatePlanViews(); // shows the empty-plan and empty-shopping-list states immediately
+  renderSavedDays(); // shows the empty-saved-days state immediately
   showLoading(els.dishesStatus, 'Loading cuisines…');
 
   try {
