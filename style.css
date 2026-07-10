@@ -326,6 +326,7 @@ section h2 {
 
 .saved-day-item {
   background: var(--surface);
+  border: 2px solid var(--border);
   border-left: 5px solid var(--accent-fallback);
   border-radius: var(--radius);
   padding: 0.75rem 1rem;
@@ -346,7 +347,7 @@ section h2 {
 
 .saved-day-item.active {
   background: var(--bg);
-  border-left-color: var(--text);
+  border-color: var(--text);
 }
 
 .edit-day-btn {

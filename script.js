@@ -372,6 +372,7 @@ function updateActiveDayIndicator() {
   els.activeDayIndicator.textContent = activeDay
     ? `Editing "${activeDay.name}" — Save to Day will update it.`
     : '';
+  els.saveDayBtn.textContent = activeDay ? `Save to ${activeDay.name}` : 'Save to Day';
 }
 
 /* =========================================================
@@ -559,7 +560,9 @@ function cloneDishes(entries) {
 
 // Snapshots the current working plan under a user-given name, creating a
 // brand-new saved day. Only reached when there's no active day — see
-// handleSaveDayClick.
+// handleSaveDayClick. Leaves activeDayId untouched (already null here) so a
+// later edit-from-scratch continues to prompt for a name rather than
+// silently updating this day.
 function saveToDay(name) {
   const trimmedName = name.trim();
   if (!trimmedName) return;
@@ -573,9 +576,12 @@ function saveToDay(name) {
 }
 
 // Overwrites an already-active day's dishes with the current working plan
-// (same name, no prompt) and refreshes its meal count in the list.
+// (same name, no prompt) and refreshes its meal count in the list. Clears
+// activeDayId afterwards — once a save completes, the next "Save to Day"
+// should only update a day again if the user explicitly re-loads one.
 function updateActiveDay(day) {
   day.dishes = cloneDishes(state.mealPlan);
+  state.activeDayId = null;
   renderSavedDays();
 }
 
