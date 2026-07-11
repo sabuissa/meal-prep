@@ -434,16 +434,17 @@ function updateActiveDayIndicator() {
    Rendering — shopping list
    ========================================================= */
 
-// Aggregates ingredients across every dish currently in the plan (a dish
-// added twice contributes its ingredients twice). Ingredients are grouped
-// by name (lowercased + trimmed) so casing/whitespace differences merge
-// into one line, but measures are only concatenated as text — never summed
-// numerically. Reads directly from state.mealPlan, so a future custom-meal
+// Aggregates ingredients across a list of plan entries (a dish added twice
+// contributes its ingredients twice). Ingredients are grouped by name
+// (lowercased + trimmed) so casing/whitespace differences merge into one
+// line, but measures are only concatenated as text — never summed
+// numerically. Takes entries explicitly so it can build a shopping list for
+// either the working plan or a saved day's dishes; a future custom-meal
 // feature just needs to push entries with the same {ingredients} shape.
-function buildShoppingList() {
+function buildShoppingListFrom(entries) {
   const grouped = new Map(); // lowercased/trimmed name -> { name, measures[] }
 
-  state.mealPlan.forEach((entry) => {
+  entries.forEach((entry) => {
     entry.ingredients.forEach((ing) => {
       const key = ing.ingredient.toLowerCase().trim();
       if (!grouped.has(key)) {
@@ -456,6 +457,10 @@ function buildShoppingList() {
   });
 
   return Array.from(grouped.values());
+}
+
+function buildShoppingList() {
+  return buildShoppingListFrom(state.mealPlan);
 }
 
 // Only these weight/volume units are summed; a measure that isn't exactly
@@ -660,6 +665,19 @@ function renderDayView(day) {
   });
 
   els.dayViewModalBody.appendChild(list);
+
+  const groceryHeading = document.createElement('h4');
+  groceryHeading.textContent = 'Grocery List';
+  els.dayViewModalBody.appendChild(groceryHeading);
+
+  const groceryList = document.createElement('ul');
+  groceryList.className = 'shopping-list';
+  buildShoppingListFrom(day.dishes).forEach((item) => {
+    const li = document.createElement('li');
+    li.textContent = item.measures.length > 0 ? `${item.name} — ${formatMeasures(item.measures)}` : item.name;
+    groceryList.appendChild(li);
+  });
+  els.dayViewModalBody.appendChild(groceryList);
 }
 
 function showDayView(dayId) {
